@@ -18,5 +18,3 @@ export class RegisterPage {
 		await this.loginButton.click();
 	}
 }
-
- 
