@@ -1,0 +1,46 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: Авторизованный пользователь может просмотреть список статей
+- Location: C:\Users\Admin\Desktop\pwtestGURU\tests\class.spec.js:7:5
+
+# Error details
+
+```
+Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+Call log:
+  - navigating to "https://realworld.qa.guru/", waiting until "load"
+
+    at MainPage.open (C:\Users\Admin\Desktop\pwtestGURU\src\helpers\builders\pages\main.page.js:9:19)
+    at C:\Users\Admin\Desktop\pwtestGURU\tests\class.spec.js:22:17
+```
+
+# Test source
+
+```ts
+   1 | export class MainPage {
+   2 | 	constructor(page) {
+   3 | 		this.page = page;
+   4 | 		this.signupButton = page.getByRole('link', { name: 'Sign up' });
+   5 | 	}
+   6 |
+   7 | 	async open() {
+   8 | 		// todo урл унести в конфиги
+>  9 | 		await this.page.goto('https://realworld.qa.guru/');
+     | 		                ^ Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+  10 | 	}
+  11 |
+  12 | 	async gotoLogin() {
+  13 | 		await this.signupButton.click();
+  14 | 	}
+  15 | }
+  16 |
+  17 |
+  18 |
+  19 |
+```
