@@ -1,0 +1,84 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: авторизация через логин и пароль2
+- Location: C:\Users\Admin\Desktop\pwtestGURU\tests\arraysObjects.spec.js:38:5
+
+# Error details
+
+```
+Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+Call log:
+  - navigating to "https://realworld.qa.guru/", waiting until "load"
+
+    at register (C:\Users\Admin\Desktop\pwtestGURU\tests\arraysObjects.spec.js:5:14)
+    at C:\Users\Admin\Desktop\pwtestGURU\tests\arraysObjects.spec.js:41:11
+```
+
+# Test source
+
+```ts
+   1 | import { test, expect } from '@playwright/test';
+   2 | import { faker } from '@faker-js/faker';
+   3 |
+   4 | const register = async (page, randomUser) => {
+>  5 |   await page.goto('https://realworld.qa.guru/');
+     |              ^ Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+   6 |   let { username, email, password} = randomUser;
+   7 |
+   8 |  /* {
+   9 |     username: 'Garett_Parisian',
+  10 |     email: 'Estella_Huels78@hotmail.com',
+  11 |     password: 'w2zXWf8bobELAc7'
+  12 |   }*/
+  13 |
+  14 |   await page.getByRole('link', { name: 'Sign up' }).click();
+  15 |   await page.getByRole('textbox', { name: 'Your Name' }).click();
+  16 |   /* Способ 1
+  17 |   await page.getByRole('textbox', { name: 'Your Name' }).fill(randomUser.username);*/
+  18 |
+  19 |   await page.getByRole('textbox', { name: 'Your Name' }).fill(username);
+  20 |   await page.getByRole('textbox', { name: 'Email' }).click();
+  21 |   await page.getByRole('textbox', { name: 'Email' }).fill(email);
+  22 |   await page.getByRole('textbox', { name: 'Password' }).click();
+  23 |   await page.getByRole('textbox', { name: 'Password' }).fill(password);
+  24 |   await page.getByRole('button', { name: 'Sign up' }).click();
+  25 |   };
+  26 |
+  27 |   const getRandomUser = () => {
+  28 |     
+  29 |     const randomUser = {
+  30 |         username: faker.internet.username(),
+  31 |         email: faker.internet.email(),
+  32 |         password: faker.internet.password(),
+  33 |     };
+  34 |      
+  35 |   return randomUser;
+  36 |   };
+  37 |
+  38 | test('авторизация через логин и пароль2', async ({ page }) => {
+  39 |     const randomUser = getRandomUser();
+  40 |     console.log(randomUser);
+  41 |     await register (page, randomUser);
+  42 |     await page.screenshot({ path: 'Error.png', fullPage: true });
+  43 |     await expect(page.getByRole('navigation')).toContainText(randomUser.username);  
+  44 |   }); 
+  45 |
+  46 |   test('Демонстрация работы filter', async ({ page }) => {
+  47 | 	await page.goto('https://realworld.qa.guru/');
+  48 | 	await page.waitForLoadState('networkidle');
+  49 | 	const filteredArticles = await page
+  50 | 		.locator('.article-preview')
+  51 | 		.filter({
+  52 | 			hasText: 'Gustave', // ищет текст в любом месте элемента или его потомков
+  53 | 		})
+  54 | 		.click();
+  55 | 	//await expect(page.getByRole("navigation")).toContainText(username);
+  56 | 	//	await page.screenshot({ path: 'screenshot1.png' });
+  57 | });
+```
