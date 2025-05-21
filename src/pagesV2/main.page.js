@@ -9,7 +9,8 @@ export class MainPage {
 	async open() {
 		return test.step('Открыть страницу', async () => {
 			// todo урл унести в конфиги
-			await this.page.goto('https://realworld.qa.guru/');
+			//await this.page.goto('https://realworld.qa.guru/');
+			await this.page.goto('https://vue3-realworld-example-app-mutoe.vercel.app');
 		});
 	}
 
