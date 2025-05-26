@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 import { test } from '../src/helpers/fixtures/index';
-import { UserBuilder } from '../src/helpers/builders/user.builder';
+import { UserBuilder } from '../src/helpers/builders/index';
 
 test('Авторизованный пользователь может просмотреть список статей', async ({
 	webApp,
@@ -35,7 +35,7 @@ test('Авторизованный пользователь может прос�
 		randomUser.username,
 	);
 });
-test('Авторизованный пользователь может просмотреть список статей v3', async ({
+test.only('Авторизованный пользователь может просмотреть список статей v3', async ({
 	regPageWithUser,
 }) => {
 	// todo дописать просмотр статей
