@@ -1,0 +1,80 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: Авторизованный пользователь может просмотреть список статей v2
+- Location: /home/runner/work/pwtestGURU/pwtestGURU/tests/fixtures.spec.js:22:5
+
+# Error details
+
+```
+Error: locator.click: Test timeout of 30000ms exceeded.
+Call log:
+  - waiting for getByRole('textbox', { name: 'Your Name' })
+
+    at RegisterPage.signup (/home/runner/work/pwtestGURU/pwtestGURU/src/pagesV2/register.page.js:12:28)
+    at /home/runner/work/pwtestGURU/pwtestGURU/tests/fixtures.spec.js:33:27
+```
+
+# Page snapshot
+
+```yaml
+- navigation:
+  - link "global-feed": conduit
+  - list:
+    - listitem:
+      - link "Home"
+    - listitem:
+      - link "Sign in"
+    - listitem:
+      - link "Sign up"
+- heading "Sign up" [level=1]
+- paragraph:
+  - link "login": Have an account?
+- list
+- form "Registration form":
+  - group:
+    - textbox "Username"
+  - group:
+    - textbox "Email"
+  - group:
+    - textbox "Password"
+  - button "Sign up" [disabled]
+- contentinfo:
+  - link "global-feed": conduit
+  - text: An interactive learning project from
+  - link "Thinkster"
+  - text: . Code & design licensed under MIT.
+  - link "Real world app"
+  - text: implementation using Vue v3 with Typescript and Composition Api
+```
+
+# Test source
+
+```ts
+   1 | export class RegisterPage {
+   2 | 	constructor(page) {
+   3 | 		this.page = page;
+   4 | 		this.loginButton = page.getByRole('button', { name: 'Sign up' });
+   5 | 		this.emailField = page.getByRole('textbox', { name: 'Email' });
+   6 | 		this.passwordField = page.getByRole('textbox', { name: 'Password' });
+   7 | 		this.usernameField = page.getByRole('textbox', { name: 'Your Name' });
+   8 | 	}
+   9 |
+  10 | 	async signup(randomUser) {
+  11 | 		const { email, password, username } = randomUser;
+> 12 | 		await this.usernameField.click();
+     | 		                         ^ Error: locator.click: Test timeout of 30000ms exceeded.
+  13 | 		await this.usernameField.fill(username);
+  14 | 		await this.emailField.click();
+  15 | 		await this.emailField.fill(email);
+  16 | 		await this.passwordField.click();
+  17 | 		await this.passwordField.fill(password);
+  18 | 		await this.loginButton.click();
+  19 | 	}
+  20 | }
+```

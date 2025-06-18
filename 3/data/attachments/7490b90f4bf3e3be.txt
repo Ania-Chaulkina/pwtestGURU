@@ -1,0 +1,372 @@
+class URL {
+  #context = new URLContext();
+  #searchParams;
+  #searchParamsModified;
+
+  static {
+    setURLSearchParamsModified = (obj) => {
+      // When URLSearchParams changes, we lazily update URL on the next read/write for performance.
+      obj.#searchParamsModified = true;
+
+      // If URL has an existing search, remove it without cascading back to URLSearchParams.
+      // Do this to avoid any internal confusion about whether URLSearchParams or URL is up-to-date.
+      if (obj.#context.hasSearch) {
+        obj.#updateContext(bindingUrl.update(obj.#context.href, updateActions.kSearch, ''));
+      }
+    };
+  }
+
+  constructor(input, base = undefined, parseSymbol = undefined) {
+    markTransferMode(this, false, false);
+
+    if (arguments.length === 0) {
+      throw new ERR_MISSING_ARGS('url');
+    }
+
+    // StringPrototypeToWellFormed is not needed.
+    input = `${input}`;
+
+    if (base !== undefined) {
+      base = `${base}`;
+    }
+
+    let href;
+    if (arguments.length < 3) {
+      href = bindingUrl.parse(input, base, true);
+    } else {
+      const raiseException = parseSymbol !== kParseURLSymbol;
+      const interpretAsWindowsPath = parseSymbol === kCreateURLFromWindowsPathSymbol;
+      const pathToFileURL = interpretAsWindowsPath || (parseSymbol === kCreateURLFromPosixPathSymbol);
+      href = pathToFileURL ?
+        bindingUrl.pathToFileURL(input, interpretAsWindowsPath, base) :
+        bindingUrl.parse(input, base, raiseException);
+    }
+    if (href) {
+      this.#updateContext(href);
+    }
+  }
+
+  static parse(input, base = undefined) {
+    if (arguments.length === 0) {
+      throw new ERR_MISSING_ARGS('url');
+    }
+    const parsedURLObject = new URL(input, base, kParseURLSymbol);
+    return parsedURLObject.href ? parsedURLObject : null;
+  }
+
+  [inspect.custom](depth, opts) {
+    if (typeof depth === 'number' && depth < 0)
+      return this;
+
+    const constructor = getConstructorOf(this) || URL;
+    const obj = { __proto__: { constructor } };
+
+    obj.href = this.href;
+    obj.origin = this.origin;
+    obj.protocol = this.protocol;
+    obj.username = this.username;
+    obj.password = this.password;
+    obj.host = this.host;
+    obj.hostname = this.hostname;
+    obj.port = this.port;
+    obj.pathname = this.pathname;
+    obj.search = this.search;
+    obj.searchParams = this.searchParams;
+    obj.hash = this.hash;
+
+    if (opts.showHidden) {
+      obj[contextForInspect] = this.#context;
+    }
+
+    return `${constructor.name} ${inspect(obj, opts)}`;
+  }
+
+  #getSearchFromContext() {
+    if (!this.#context.hasSearch) return '';
+    let endsAt = this.#context.href.length;
+    if (this.#context.hasHash) endsAt = this.#context.hash_start;
+    if (endsAt - this.#context.search_start <= 1) return '';
+    return StringPrototypeSlice(this.#context.href, this.#context.search_start, endsAt);
+  }
+
+  #getSearchFromParams() {
+    if (!this.#searchParams?.size) return '';
+    return `?${this.#searchParams}`;
+  }
+
+  #ensureSearchParamsUpdated() {
+    // URL is updated lazily to greatly improve performance when URLSearchParams is updated repeatedly.
+    // If URLSearchParams has been modified, reflect that back into URL, without cascading back.
+    if (this.#searchParamsModified) {
+      this.#searchParamsModified = false;
+      this.#updateContext(bindingUrl.update(this.#context.href, updateActions.kSearch, this.#getSearchFromParams()));
+    }
+  }
+
+  /**
+   * Update the internal context state for URL.
+   * @param {string} href New href string from `bindingUrl.update`.
+   * @param {boolean} [shouldUpdateSearchParams] If the update has potential to update search params (href/search).
+   */
+  #updateContext(href, shouldUpdateSearchParams = false) {
+    const previousSearch = shouldUpdateSearchParams && this.#searchParams &&
+      (this.#searchParamsModified ? this.#getSearchFromParams() : this.#getSearchFromContext());
+
+    this.#context.href = href;
+
+    const {
+      0: protocol_end,
+      1: username_end,
+      2: host_start,
+      3: host_end,
+      4: port,
+      5: pathname_start,
+      6: search_start,
+      7: hash_start,
+      8: scheme_type,
+    } = bindingUrl.urlComponents;
+
+    this.#context.protocol_end = protocol_end;
+    this.#context.username_end = username_end;
+    this.#context.host_start = host_start;
+    this.#context.host_end = host_end;
+    this.#context.port = port;
+    this.#context.pathname_start = pathname_start;
+    this.#context.search_start = search_start;
+    this.#context.hash_start = hash_start;
+    this.#context.scheme_type = scheme_type;
+
+    if (this.#searchParams) {
+      // If the search string has updated, URL becomes the source of truth, and we update URLSearchParams.
+      // Only do this when we're expecting it to have changed, otherwise a change to hash etc.
+      // would incorrectly compare the URLSearchParams state to the empty URL search state.
+      if (shouldUpdateSearchParams) {
+        const currentSearch = this.#getSearchFromContext();
+        if (previousSearch !== currentSearch) {
+          setURLSearchParams(this.#searchParams, currentSearch);
+          this.#searchParamsModified = false;
+        }
+      }
+
+      // If we have a URLSearchParams, ensure that URL is up-to-date with any modification to it.
+      this.#ensureSearchParamsUpdated();
+    }
+  }
+
+  toString() {
+    // Updates to URLSearchParams are lazily propagated to URL, so we need to check we're in sync.
+    this.#ensureSearchParamsUpdated();
+    return this.#context.href;
+  }
+
+  get href() {
+    // Updates to URLSearchParams are lazily propagated to URL, so we need to check we're in sync.
+    this.#ensureSearchParamsUpdated();
+    return this.#context.href;
+  }
+
+  set href(value) {
+    value = `${value}`;
+    const href = bindingUrl.update(this.#context.href, updateActions.kHref, value);
+    if (!href) { throw new ERR_INVALID_URL(value); }
+    this.#updateContext(href, true);
+  }
+
+  // readonly
+  get origin() {
+    const protocol = StringPrototypeSlice(this.#context.href, 0, this.#context.protocol_end);
+
+    // Check if scheme_type is not `NOT_SPECIAL`
+    if (this.#context.scheme_type !== 1) {
+      // Check if scheme_type is `FILE`
+      if (this.#context.scheme_type === 6) {
+        return 'null';
+      }
+      return `${protocol}//${this.host}`;
+    }
+
+    if (protocol === 'blob:') {
+      const path = this.pathname;
+      if (path.length > 0) {
+        try {
+          const out = new URL(path);
+          // Only return origin of scheme is `http` or `https`
+          // Otherwise return a new opaque origin (null).
+          if (out.#context.scheme_type === 0 || out.#context.scheme_type === 2) {
+            return `${out.protocol}//${out.host}`;
+          }
+        } catch {
+          // Do nothing.
+        }
+      }
+    }
+
+    return 'null';
+  }
+
+  get protocol() {
+    return StringPrototypeSlice(this.#context.href, 0, this.#context.protocol_end);
+  }
+
+  set protocol(value) {
+    const href = bindingUrl.update(this.#context.href, updateActions.kProtocol, `${value}`);
+    if (href) {
+      this.#updateContext(href);
+    }
+  }
+
+  get username() {
+    if (this.#context.protocol_end + 2 < this.#context.username_end) {
+      return StringPrototypeSlice(this.#context.href, this.#context.protocol_end + 2, this.#context.username_end);
+    }
+    return '';
+  }
+
+  set username(value) {
+    const href = bindingUrl.update(this.#context.href, updateActions.kUsername, `${value}`);
+    if (href) {
+      this.#updateContext(href);
+    }
+  }
+
+  get password() {
+    if (this.#context.host_start - this.#context.username_end > 0) {
+      return StringPrototypeSlice(this.#context.href, this.#context.username_end + 1, this.#context.host_start);
+    }
+    return '';
+  }
+
+  set password(value) {
+    const href = bindingUrl.update(this.#context.href, updateActions.kPassword, `${value}`);
+    if (href) {
+      this.#updateContext(href);
+    }
+  }
+
+  get host() {
+    let startsAt = this.#context.host_start;
+    if (this.#context.href[startsAt] === '@') {
+      startsAt++;
+    }
+    // If we have an empty host, then the space between components.host_end and
+    // components.pathname_start may be occupied by /.
+    if (startsAt === this.#context.host_end) {
+      return '';
+    }
+    return StringPrototypeSlice(this.#context.href, startsAt, this.#context.pathname_start);
+  }
+
+  set host(value) {
+    const href = bindingUrl.update(this.#context.href, updateActions.kHost, `${value}`);
+    if (href) {
+      this.#updateContext(href);
+    }
+  }
+
+  get hostname() {
+    let startsAt = this.#context.host_start;
+    // host_start might be "@" if the URL has credentials
+    if (this.#context.href[startsAt] === '@') {
+      startsAt++;
+    }
+    return StringPrototypeSlice(this.#context.href, startsAt, this.#context.host_end);
+  }
+
+  set hostname(value) {
+    const href = bindingUrl.update(this.#context.href, updateActions.kHostname, `${value}`);
+    if (href) {
+      this.#updateContext(href);
+    }
+  }
+
+  get port() {
+    if (this.#context.hasPort) {
+      return `${this.#context.port}`;
+    }
+    return '';
+  }
+
+  set port(value) {
+    const href = bindingUrl.update(this.#context.href, updateActions.kPort, `${value}`);
+    if (href) {
+      this.#updateContext(href);
+    }
+  }
+
+  get pathname() {
+    let endsAt;
+    if (this.#context.hasSearch) {
+      endsAt = this.#context.search_start;
+    } else if (this.#context.hasHash) {
+      endsAt = this.#context.hash_start;
+    }
+    return StringPrototypeSlice(this.#context.href, this.#context.pathname_start, endsAt);
+  }
+
+  set pathname(value) {
+    const href = bindingUrl.update(this.#context.href, updateActions.kPathname, `${value}`);
+    if (href) {
+      this.#updateContext(href);
+    }
+  }
+
+  get search() {
+    // Updates to URLSearchParams are lazily propagated to URL, so we need to check we're in sync.
+    this.#ensureSearchParamsUpdated();
+    return this.#getSearchFromContext();
+  }
+
+  set search(value) {
+    const href = bindingUrl.update(this.#context.href, updateActions.kSearch, StringPrototypeToWellFormed(`${value}`));
+    if (href) {
+      this.#updateContext(href, true);
+    }
+  }
+
+  // readonly
+  get searchParams() {
+    // Create URLSearchParams on demand to greatly improve the URL performance.
+    if (this.#searchParams == null) {
+      this.#searchParams = new URLSearchParams(this.#getSearchFromContext());
+      setURLSearchParamsContext(this.#searchParams, this);
+      this.#searchParamsModified = false;
+    }
+    return this.#searchParams;
+  }
+
+  get hash() {
+    if (!this.#context.hasHash || (this.#context.href.length - this.#context.hash_start <= 1)) {
+      return '';
+    }
+    return StringPrototypeSlice(this.#context.href, this.#context.hash_start);
+  }
+
+  set hash(value) {
+    const href = bindingUrl.update(this.#context.href, updateActions.kHash, `${value}`);
+    if (href) {
+      this.#updateContext(href);
+    }
+  }
+
+  toJSON() {
+    // Updates to URLSearchParams are lazily propagated to URL, so we need to check we're in sync.
+    this.#ensureSearchParamsUpdated();
+    return this.#context.href;
+  }
+
+  static canParse(url, base = undefined) {
+    if (arguments.length === 0) {
+      throw new ERR_MISSING_ARGS('url');
+    }
+
+    url = `${url}`;
+
+    if (base !== undefined) {
+      return bindingUrl.canParse(url, `${base}`);
+    }
+
+    // It is important to differentiate the canParse call statements
+    // since they resolve into different v8 fast api overloads.
+    return bindingUrl.canParse(url);
+  }
+}/gui/challenges/326bdeac-0d53-49e3-b17c-fc2bf772efc3
